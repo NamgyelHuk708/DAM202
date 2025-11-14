@@ -153,7 +153,8 @@ Architecture:
 
 #### **NER: CoNLL-2003**
 
-![alt text](image/image_4.png)
+![alt text](image/image.png)
+
 
 ```
 Dataset Statistics:
