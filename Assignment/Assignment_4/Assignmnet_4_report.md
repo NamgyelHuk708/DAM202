@@ -153,6 +153,8 @@ The most critical finding here is that **85.4% of the input articles were trunca
 
 ### 4.1 Why T5 Model?
 
+![alt text](image/image.png)
+
 T5 (Text-to-Text Transfer Transformer) was selected due to its unified text-to-text framework that handles all NLP tasks (translation, classification, summarization) by simply changing the input prefix. Its encoder-decoder architecture is ideal for summarization: the encoder creates a bidirectional representation of the source article, while the decoder generates a contextually-aware summary. The `t5-small` variant enables efficient training on consumer-grade GPUs while maintaining strong performance.
 
 ### 4.2 T5 Architecture Deep Dive
@@ -437,9 +439,122 @@ The results show a clear trade-off. For high-quality, factual summaries, Beam Se
 
 ---
 
-## 8. CONCLUSION
+## 8. ATTENTION VISUALIZATION AND ANALYSIS
 
-This assignment successfully demonstrated the fine-tuning of a `t5-small` model for abstractive text summarization and provided a detailed comparative analysis of three fundamental decoding strategies.
+This section analyzes the model's attention patterns, identifies failure cases, and evaluates factual consistency to understand decoder behavior during text generation.
+
+### 8.1 Attention Pattern Analysis
+
+**Example Generation:**
+
+*Input:* "Manchester City and Chelsea are set to battle it out for the signature of West Ham left-back Aaron Cresswell this summer..."
+
+*Generated:* "Chelsea and Manchester City are set to battle it out for Aaron Cresswell. West Ham left-back has impressed for Hammers this campaign."
+
+*Statistics:* Input tokens: 119 | Generated tokens: 50 | Attention steps: 49
+
+#### Attention Statistics:
+
+| Metric | Value | Interpretation |
+|---|---|---|
+| **Average Entropy** | 2.673 | Moderate distributed attention |
+| **Entropy Std Dev** | 0.186 | Consistent patterns |
+| **Min/Max Entropy** | 2.398 / 2.972 | Balanced focus range |
+
+#### Top 10 Most Attended Tokens:
+
+| Rank | Position | Token | Weight | Rank | Position | Token | Weight |
+|---|---|---|---|---|---|---|---|
+| 1 | 9 | "battle" | 0.4558 | 6 | 10 | "it" | 0.2620 |
+| 2 | 21 | "Aaron" | 0.3809 | 7 | 8 | "to" | 0.2480 |
+| 3 | 7 | "set" | 0.3416 | 8 | 4 | "and" | 0.2317 |
+| 4 | 14 | "signature" | 0.3046 | 9 | 3 | "City" | 0.2080 |
+| 5 | 2 | "Manchester" | 0.2799 | 10 | 11 | "out" | 0.1732 |
+
+**Key Findings:** Model prioritizes named entities (Aaron, Manchester, City) and action verbs (battle, set), while maintaining distributed attention across context.
+
+---
+
+### 8.2 Failure Case Analysis
+
+####  WORST 3 CASES:
+
+**1. Example 3 (ROUGE-1: 31.75%)**
+- *Generated:* "Chelsea lost 87 minutes to Queens Park Rangers... Cesc Fabregas scored an 87th minute winner for QPR."
+- **Issue:** Factual error - Chelsea won, not lost; misattributed goal
+
+**2. Example 1 (ROUGE-1: 33.33%)**
+- *Generated:* "Asif Malik, 31, his partner Sara Kiran, 29, and their four children were caught on CCTV... daughter Zoha, seven, and three sons Essa, four, Zakariva, two, 'Stop Terrorism Against Sunnis"
+- **Issue:** Too verbose (95 words), incomplete sentence, excessive detail
+
+**3. Example 7 (ROUGE-1: 35.79%)**
+- *Generated:* "The Robshaws sample insects in tonight's episode... Their children Miranda, 17, Rosalind, 15 and Fred are served the food of the future."
+- **Issue:** Misses key nutritional facts, focuses on irrelevant names/ages
+
+####  BEST 3 CASES:
+
+**1. Example 0 (ROUGE-1: 55.42%)**
+- *Generated:* "Chelsea and Manchester City are set to battle it out for Aaron Cresswell this summer. West Ham left back has impressed for the Hammers this season."
+- **Success:** Concise, captures key entities, preserves main narrative
+
+**2. Example 4 (ROUGE-1: 47.52%)**
+- *Generated:* "Ian Guffick asked pupils to make changes to national curriculum tests... Department for Education annulled all SATs exam results for entire school."
+- **Success:** Clear event sequence, includes consequences
+
+**3. Example 5 (ROUGE-1: 43.59%)**
+- *Generated:* "Alan Pardew is keen to bring in a star name to boost the club's profile. Pardew is prepared to let star winger Yannick Bolasie leave for 'between 40 and 60 million pounds'"
+- **Success:** Captures intentions, includes financial details
+
+**Common Patterns:**
+- **Failures:** Factual errors, excessive/irrelevant details, incomplete sentences
+- **Successes:** Entity preservation, focused event extraction, appropriate length
+
+---
+
+### 8.3 Additional Analysis Metrics
+
+#### Repetition Analysis:
+
+| Strategy | Repetition Rate | Cases Affected |
+|---|---|---|
+| Greedy | 0.00% | 0/10 |
+| Beam-5 | 0.28% | 2/10 |
+| Nucleus-0.9 | 0.14% | 1/10 |
+
+**Finding:** Very low repetition rates (< 0.3%) across all strategies; no mitigation needed.
+
+#### Length Distribution (Beam-5):
+
+| Category | Count | Percentage | Length vs ROUGE |
+|---|---|---|---|
+| Too Short | 3 | 30% | Correlation: -0.304 |
+| Appropriate | 5 | 50% | P-value: 0.3932 (not significant) |
+| Too Long | 2 | 20% | Quality ≠ length dependent |
+
+#### Factual Consistency:
+
+| Metric | Value | Interpretation |
+|---|---|---|
+| **Entity Coverage** | 55.5% | Captures ~half of key entities |
+| **Hallucination Rate** | 0.5% | Very low fabrication rate |
+
+**Implications:**  High reliability (doesn't fabricate) |  Moderate completeness (may miss entities)
+
+---
+
+### 8.4 Key Insights
+
+1. **Attention:** Distributed across input (entropy: 2.673); prioritizes named entities and verbs
+2. **Performance Range:** ROUGE-1 from 31.75% to 55.42%; best cases extract events clearly
+3. **Repetition:** Minimal (< 0.3%); not a concern for this model
+4. **Quality Factors:** Depends on content selection, not length (correlation: -0.304, p=0.39)
+5. **Factual Fidelity:** Low hallucinations (0.5%), moderate entity coverage (55.5%)
+
+---
+
+## 9. CONCLUSION
+
+This assignment successfully demonstrated the fine-tuning of a `t5-small` model for abstractive text summarization and provided a detailed comparative analysis of three fundamental decoding strategies, along with comprehensive attention and error analysis.
 
 **Key Takeaways:**
 1.  **Model Performance:** The fine-tuned `t5-small` model achieved strong performance on the summarization task, with a validation ROUGE-1 score of 42.96%, confirming its ability to learn the task effectively.
@@ -448,5 +563,7 @@ This assignment successfully demonstrated the fine-tuning of a `t5-small` model 
     *   **Greedy Search** offered the best balance of speed and reasonable quality.
     *   **Nucleus Sampling** excelled in generating diverse outputs but at the expense of lower ROUGE scores.
 3.  **No Single Best Strategy:** The choice of a decoding strategy is not one-size-fits-all. It is highly dependent on the specific application's requirements, balancing the need for accuracy, speed, and diversity.
+4.  **Attention Insights:** The attention analysis revealed that the model effectively focuses on named entities and action verbs while maintaining a distributed attention pattern across the input, indicating robust contextual understanding.
+5.  **Quality Challenges:** While the model shows low hallucination rates (0.5%), it sometimes struggles with appropriate detail selection and entity coverage (55.5%), suggesting areas for future improvement.
 
-This project provided valuable hands-on experience with modern NLP pipelines, from data preprocessing and model training to the critical analysis of text generation techniques. The skills and insights gained are directly applicable to a wide range of NLP projects in both academic and industry settings.
+This project provided valuable hands-on experience with modern NLP pipelines, from data preprocessing and model training to the critical analysis of text generation techniques and deep model interpretation through attention visualization. The skills and insights gained are directly applicable to a wide range of NLP projects in both academic and industry settings.
